@@ -2,15 +2,14 @@ name: Top21News Daily Bot
 
 on:
   schedule:
-    - cron: '30 2 * * *'   # 8:00 AM IST
-    - cron: '30 8 * * *'   # 2:00 PM IST
-    - cron: '30 14 * * *'  # 8:00 PM IST
-  workflow_dispatch:        # allows manual trigger for testing
+    - cron: '30 2 * * *'
+    - cron: '30 8 * * *'
+    - cron: '30 14 * * *'
+  workflow_dispatch:
 
 jobs:
   post-news:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -30,17 +29,3 @@ jobs:
           IG_ACCOUNT_ID: ${{ secrets.IG_ACCOUNT_ID }}
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
         run: python bot/news_bot.py
-```
-
-4. Click **"Commit changes"** → **"Commit changes"**
-
----
-
-### ✋ Tell me when both files are saved
-
-Your repo should then have:
-```
-📁 Top21news-bot
-├── 📁 .github/workflows/post_news.yml
-├── 📁 bot/news_bot.py
-└── requirements.txt
