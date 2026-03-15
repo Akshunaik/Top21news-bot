@@ -1,0 +1,46 @@
+name: Top21News Daily Bot
+
+on:
+  schedule:
+    - cron: '30 2 * * *'   # 8:00 AM IST
+    - cron: '30 8 * * *'   # 2:00 PM IST
+    - cron: '30 14 * * *'  # 8:00 PM IST
+  workflow_dispatch:        # allows manual trigger for testing
+
+jobs:
+  post-news:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run news bot
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_ACCOUNT_ID: ${{ secrets.IG_ACCOUNT_ID }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+        run: python bot/news_bot.py
+```
+
+4. Click **"Commit changes"** → **"Commit changes"**
+
+---
+
+### ✋ Tell me when both files are saved
+
+Your repo should then have:
+```
+📁 Top21news-bot
+├── 📁 .github/workflows/post_news.yml
+├── 📁 bot/news_bot.py
+└── requirements.txt
