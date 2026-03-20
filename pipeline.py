@@ -56,7 +56,7 @@ Each item must have these exact keys:
 Return exactly 21 items. Diverse categories. No duplicates."""
 
     resp = requests.post(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
         params={"key": GEMINI_API_KEY},
         headers={"Content-Type": "application/json"},
         json={
