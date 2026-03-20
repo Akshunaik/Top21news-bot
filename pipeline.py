@@ -188,16 +188,31 @@ def upload_group(paths: list[str]) -> list[str]:
 # STEP 4 — Instagram Graph API
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _ig_post(endpoint: str, data: dict) -> dict:
-    resp = requests.post(
-        f"https://graph.facebook.com/v19.0/{endpoint}",
-        data={**data, "access_token": IG_ACCESS_TOKEN},
-        timeout=30,
-    )
-    if not resp.ok:
-        print(f"   ❌ Instagram API error {resp.status_code}: {resp.text[:500]}")
+def _ig_post(endpoint: str, data: dict, retries: int = 5, delay: int = 15) -> dict:
+    for attempt in range(1, retries + 1):
+        resp = requests.post(
+            f"https://graph.facebook.com/v19.0/{endpoint}",
+            data={**data, "access_token": IG_ACCESS_TOKEN},
+            timeout=30,
+        )
+        if resp.ok:
+            return resp.json()
+        
+        err = resp.json().get("error", {})
+        is_transient = err.get("is_transient", False)
+        code = err.get("code")
+        msg  = err.get("message", "")
+        
+        print(f"   ⚠️  Instagram attempt {attempt}/{retries} — code {code}: {msg}")
+        
+        if is_transient and attempt < retries:
+            wait = delay * attempt   # 15s, 30s, 45s, 60s
+            print(f"   ⏳ Transient error, retrying in {wait}s…")
+            time.sleep(wait)
+        else:
+            resp.raise_for_status()
+    
     resp.raise_for_status()
-    return resp.json()
 
 
 def ig_create_item(image_url: str) -> str:
