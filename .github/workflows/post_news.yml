@@ -19,7 +19,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install Pillow requests google-generativeai
+        run: pip install Pillow requests
 
       - name: Run pipeline
         env:
