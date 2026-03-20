@@ -2,7 +2,7 @@ name: Top21News Daily Post
 
 on:
   schedule:
-    - cron: "30 5 * * *"
+    - cron: "30 5 * * *"   # 5:30 AM UTC = 11:00 AM IST
   workflow_dispatch:
 
 jobs:
