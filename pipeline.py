@@ -64,6 +64,8 @@ Return exactly 21 items. Diverse categories. No duplicates."""
         },
         timeout=60,
     )
+    print(f"   Gemini status: {resp.status_code} | Response: {resp.text[:300]}")
+    resp.raise_for_status()
     resp.raise_for_status()
     raw  = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
     raw  = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
