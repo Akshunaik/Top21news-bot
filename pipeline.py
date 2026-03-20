@@ -17,7 +17,6 @@ Required GitHub Actions secrets:
 """
 
 import os, json, time, base64, tempfile, requests
-import google.generativeai as genai
 from datetime import datetime
 from generate_card import create_news_card, create_cover_card
 
@@ -43,9 +42,6 @@ HASHTAGS = (
 # ─────────────────────────────────────────────────────────────────────────────
 
 def fetch_news_gemini() -> list[dict]:
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash-latest")
-
     prompt = f"""Today is {DATE_STR}.
 
 Return exactly 21 of today's most important global news stories.
@@ -59,9 +55,18 @@ Each item must have these exact keys:
 
 Return exactly 21 items. Diverse categories. No duplicates."""
 
-    response = model.generate_content(prompt)
-    raw  = response.text.strip()
-    raw  = raw.lstrip("```json").lstrip("```").rstrip("```").strip()
+    resp = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={GEMINI_API_KEY}",
+        headers={"Content-Type": "application/json"},
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 4096},
+        },
+        timeout=60,
+    )
+    resp.raise_for_status()
+    raw  = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    raw  = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
     news = json.loads(raw)
     print(f"   Gemini returned {len(news)} stories")
     return news[:TOTAL_STORIES]
