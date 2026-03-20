@@ -7,11 +7,6 @@ Each carousel = 8 slides:
   Slide 1  →  Branded cover card (Part X/3, Stories N–M)
   Slides 2–8 →  7 individual news story cards
 
-Structure:
-  Post 1:  Cover (Part 1/3, Stories 1–7)  + Stories 1–7
-  Post 2:  Cover (Part 2/3, Stories 8–14) + Stories 8–14
-  Post 3:  Cover (Part 3/3, Stories 15–21)+ Stories 15–21
-
 Required GitHub Actions secrets:
   GEMINI_API_KEY, IMGBB_API_KEY, IG_USER_ID, IG_ACCESS_TOKEN
 """
@@ -26,20 +21,46 @@ IMGBB_API_KEY   = os.environ["IMGBB_API_KEY"]
 IG_USER_ID      = os.environ["IG_USER_ID"]
 IG_ACCESS_TOKEN = os.environ["IG_ACCESS_TOKEN"]
 
-TOTAL_STORIES   = 21
-STORIES_PER_POST = 7          # 7 news + 1 cover = 8 slides per carousel
-TOTAL_POSTS     = 3           # 3 × 7 = 21
-DATE_STR        = datetime.now().strftime("%B %d, %Y")
+TOTAL_STORIES    = 21
+STORIES_PER_POST = 7
+TOTAL_POSTS      = 3
+DATE_STR         = datetime.now().strftime("%B %d, %Y")
 
 HASHTAGS = (
     "#Top21News #NewsToday #BreakingNews #DailyNews #WorldNews "
     "#Headlines #NewsUpdate #InstaNews #trending #news"
 )
 
+# Fallback list — tried in order until one works
+GEMINI_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-001",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-001",
+    "gemini-1.5-pro",
+    "gemini-pro",
+]
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # STEP 1 — Fetch 21 stories from Gemini
 # ─────────────────────────────────────────────────────────────────────────────
+
+def call_gemini(model: str, prompt: str) -> requests.Response:
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{model}:generateContent?key={GEMINI_API_KEY}"
+    )
+    return requests.post(
+        url,
+        headers={"Content-Type": "application/json"},
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 4096},
+        },
+        timeout=60,
+    )
+
 
 def fetch_news_gemini() -> list[dict]:
     prompt = f"""Today is {DATE_STR}.
@@ -48,30 +69,33 @@ Return exactly 21 of today's most important global news stories.
 Respond ONLY with a valid JSON array — no markdown, no backticks, no explanation.
 
 Each item must have these exact keys:
-  "headline"  – concise headline, max 12 words
-  "summary"   – 2-3 sentence plain-English summary, max 60 words
-  "category"  – one of: World, Business, Tech, Science, Sports, Health, Entertainment
-  "source"    – original news outlet name
+  "headline"  - concise headline, max 12 words
+  "summary"   - 2-3 sentence plain-English summary, max 60 words
+  "category"  - one of: World, Business, Tech, Science, Sports, Health, Entertainment
+  "source"    - original news outlet name
 
 Return exactly 21 items. Diverse categories. No duplicates."""
 
-    resp = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={GEMINI_API_KEY}",
-        headers={"Content-Type": "application/json"},
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 4096},
-        },
-        timeout=60,
-    )
-    print(f"   Gemini status: {resp.status_code} | Response: {resp.text[:300]}")
-    resp.raise_for_status()
-    resp.raise_for_status()
-    raw  = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-    raw  = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
-    news = json.loads(raw)
-    print(f"   Gemini returned {len(news)} stories")
-    return news[:TOTAL_STORIES]
+    last_error = None
+    for model in GEMINI_MODELS:
+        print(f"   Trying model: {model}")
+        try:
+            resp = call_gemini(model, prompt)
+            if resp.status_code == 200:
+                raw  = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+                raw  = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+                news = json.loads(raw)
+                print(f"   ✅ Success with {model} — got {len(news)} stories")
+                return news[:TOTAL_STORIES]
+            else:
+                err = resp.json().get("error", {}).get("message", resp.text[:100])
+                print(f"   ❌ {model} failed ({resp.status_code}): {err}")
+                last_error = err
+        except Exception as e:
+            print(f"   ❌ {model} exception: {e}")
+            last_error = str(e)
+
+    raise RuntimeError(f"All Gemini models failed. Last error: {last_error}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -80,21 +104,18 @@ Return exactly 21 items. Diverse categories. No duplicates."""
 
 def generate_cards(news: list[dict], work_dir: str) -> list[list[str]]:
     """
-    Returns a list of 3 groups, each group = list of image paths:
-      Group 0: [cover_p1.jpg, story_01.jpg … story_07.jpg]  ← 8 slides
-      Group 1: [cover_p2.jpg, story_08.jpg … story_14.jpg]  ← 8 slides
-      Group 2: [cover_p3.jpg, story_15.jpg … story_21.jpg]  ← 8 slides
+    Returns 3 groups of image paths:
+      Group 0: [cover_p1.jpg, story_01.jpg … story_07.jpg]
+      Group 1: [cover_p2.jpg, story_08.jpg … story_14.jpg]
+      Group 2: [cover_p3.jpg, story_15.jpg … story_21.jpg]
     """
     groups = []
-
     for post_idx in range(TOTAL_POSTS):
-        story_start = post_idx * STORIES_PER_POST + 1           # 1, 8, 15
-        story_end   = story_start + STORIES_PER_POST - 1        # 7, 14, 21
+        story_start = post_idx * STORIES_PER_POST + 1
+        story_end   = story_start + STORIES_PER_POST - 1
         part_num    = post_idx + 1
-
         group_paths = []
 
-        # Cover card for this carousel
         cover_path = os.path.join(work_dir, f"p{part_num}_cover.jpg")
         create_cover_card(
             date_str    = DATE_STR,
@@ -107,10 +128,9 @@ def generate_cards(news: list[dict], work_dir: str) -> list[list[str]]:
         group_paths.append(cover_path)
         print(f"  ✅ Cover — Part {part_num}/{TOTAL_POSTS} (Stories {story_start}–{story_end})")
 
-        # 7 news cards for this carousel
         batch = news[story_start - 1 : story_end]
         for i, item in enumerate(batch):
-            global_num = story_start + i          # 1-based story number across all 21
+            global_num = story_start + i
             card_path  = os.path.join(work_dir, f"story_{global_num:02d}.jpg")
             create_news_card(
                 headline     = item.get("headline", ""),
@@ -126,12 +146,11 @@ def generate_cards(news: list[dict], work_dir: str) -> list[list[str]]:
             print(f"     Story {global_num}/{TOTAL_STORIES}")
 
         groups.append(group_paths)
-
     return groups
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# STEP 3 — Upload a single image to ImgBB
+# STEP 3 — Upload images to ImgBB
 # ─────────────────────────────────────────────────────────────────────────────
 
 def upload_to_imgbb(path: str) -> str:
@@ -151,13 +170,13 @@ def upload_group(paths: list[str]) -> list[str]:
     for path in paths:
         url = upload_to_imgbb(path)
         urls.append(url)
-        print(f"     ⬆️  {os.path.basename(path)}  → {url}")
+        print(f"     ⬆️  {os.path.basename(path)}")
         time.sleep(1)
     return urls
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# STEP 4 — Instagram Graph API helpers
+# STEP 4 — Instagram Graph API
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _ig_post(endpoint: str, data: dict) -> dict:
@@ -171,7 +190,6 @@ def _ig_post(endpoint: str, data: dict) -> dict:
 
 
 def ig_create_item(image_url: str) -> str:
-    """Create a carousel item container. Returns media ID."""
     return _ig_post(f"{IG_USER_ID}/media", {
         "image_url": image_url,
         "is_carousel_item": "true",
@@ -179,7 +197,6 @@ def ig_create_item(image_url: str) -> str:
 
 
 def ig_create_carousel(children_ids: list[str], caption: str) -> str:
-    """Create carousel container. Returns container ID."""
     return _ig_post(f"{IG_USER_ID}/media", {
         "media_type": "CAROUSEL",
         "children"  : ",".join(children_ids),
@@ -198,28 +215,19 @@ def ig_wait_ready(container_id: str, retries=12, delay=6) -> bool:
         if status == "FINISHED":
             return True
         if status == "ERROR":
-            raise RuntimeError(f"Container {container_id} errored")
+            raise RuntimeError(f"Container {container_id} errored on Instagram")
         print(f"     ⏳ Status: {status} (attempt {attempt+1}/{retries})")
         time.sleep(delay)
     return False
 
 
 def ig_publish(container_id: str) -> str:
-    """Publish container. Returns published media ID."""
     return _ig_post(f"{IG_USER_ID}/media_publish", {
         "creation_id": container_id,
     })["id"]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# STEP 5 — Post one carousel
-# ─────────────────────────────────────────────────────────────────────────────
-
 def post_carousel(urls: list[str], part_num: int, story_start: int, story_end: int) -> str:
-    """
-    Upload one carousel (8 slides) to Instagram and publish it.
-    Returns published media ID.
-    """
     if part_num == 1:
         caption = (
             f"📰 Top21News — {DATE_STR}\n\n"
@@ -239,12 +247,11 @@ def post_carousel(urls: list[str], part_num: int, story_start: int, story_end: i
     for url in urls:
         cid = ig_create_item(url)
         children_ids.append(cid)
-        print(f"     Item: {cid}")
         time.sleep(2)
 
     print(f"  Creating carousel container…")
     carousel_id = ig_create_carousel(children_ids, caption)
-    print(f"  Container: {carousel_id}")
+    print(f"  Container ID: {carousel_id}")
 
     print(f"  Waiting for Instagram to process…")
     time.sleep(10)
@@ -266,16 +273,12 @@ def main():
 
     with tempfile.TemporaryDirectory() as work_dir:
 
-        # 1. Fetch
         print("\n📡 Step 1 — Fetching 21 stories from Gemini…")
         news = fetch_news_gemini()
 
-        # 2. Generate cards (grouped by post)
         print("\n🎨 Step 2 — Generating cards…")
         groups = generate_cards(news, work_dir)
-        # groups = [[p1_cover, story1…story7], [p2_cover, story8…14], [p3_cover, story15…21]]
 
-        # 3. Upload & post each group
         published = []
         for post_idx, group_paths in enumerate(groups):
             part_num    = post_idx + 1
