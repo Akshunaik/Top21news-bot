@@ -2,13 +2,12 @@ name: Top21News Daily Post
 
 on:
   schedule:
-    - cron: "30 5 * * *"   # 5:30 AM UTC = 11:00 AM IST
+    - cron: "30 5 * * *"
   workflow_dispatch:
 
 jobs:
   post-daily-news:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -22,7 +21,7 @@ jobs:
         run: pip install Pillow requests
 
       - name: Run pipeline
-       env:
+        env:
           GEMINI_API_KEY:  ${{ secrets.GEMINI_API_KEY }}
           IMGBB_API_KEY:   ${{ secrets.IMGBB_API_KEY }}
           IG_ACCOUNT_ID:   ${{ secrets.IG_ACCOUNT_ID }}
