@@ -194,6 +194,8 @@ def _ig_post(endpoint: str, data: dict) -> dict:
         data={**data, "access_token": IG_ACCESS_TOKEN},
         timeout=30,
     )
+    if not resp.ok:
+        print(f"   ❌ Instagram API error {resp.status_code}: {resp.text[:500]}")
     resp.raise_for_status()
     return resp.json()
 
