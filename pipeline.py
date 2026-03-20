@@ -62,6 +62,25 @@ def call_gemini(model: str, prompt: str) -> requests.Response:
     )
 
 
+def get_available_model() -> str:
+    """Call ListModels to find the first available model that supports generateContent."""
+    resp = requests.get(
+        f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}",
+        timeout=30,
+    )
+    resp.raise_for_status()
+    models = resp.json().get("models", [])
+    print("   Available models:")
+    for m in models:
+        name = m.get("name", "")
+        methods = m.get("supportedGenerationMethods", [])
+        if "generateContent" in methods:
+            short = name.replace("models/", "")
+            print(f"     ✅ {short}")
+            return short
+    raise RuntimeError("No generateContent-capable model found for this API key")
+
+
 def fetch_news_gemini() -> list[dict]:
     prompt = f"""Today is {DATE_STR}.
 
@@ -76,26 +95,16 @@ Each item must have these exact keys:
 
 Return exactly 21 items. Diverse categories. No duplicates."""
 
-    last_error = None
-    for model in GEMINI_MODELS:
-        print(f"   Trying model: {model}")
-        try:
-            resp = call_gemini(model, prompt)
-            if resp.status_code == 200:
-                raw  = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-                raw  = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
-                news = json.loads(raw)
-                print(f"   ✅ Success with {model} — got {len(news)} stories")
-                return news[:TOTAL_STORIES]
-            else:
-                err = resp.json().get("error", {}).get("message", resp.text[:100])
-                print(f"   ❌ {model} failed ({resp.status_code}): {err}")
-                last_error = err
-        except Exception as e:
-            print(f"   ❌ {model} exception: {e}")
-            last_error = str(e)
-
-    raise RuntimeError(f"All Gemini models failed. Last error: {last_error}")
+    model = get_available_model()
+    print(f"   Using model: {model}")
+    resp = call_gemini(model, prompt)
+    print(f"   Gemini status: {resp.status_code}")
+    resp.raise_for_status()
+    raw  = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    raw  = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+    news = json.loads(raw)
+    print(f"   ✅ Got {len(news)} stories")
+    return news[:TOTAL_STORIES]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
