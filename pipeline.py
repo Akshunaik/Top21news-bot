@@ -56,7 +56,7 @@ def call_gemini(model: str, prompt: str) -> requests.Response:
         headers={"Content-Type": "application/json"},
         json={
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 4096},
+            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 8192},
         },
         timeout=60,
     )
