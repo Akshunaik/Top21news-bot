@@ -2,8 +2,8 @@ name: Top21News Daily Post
 
 on:
   schedule:
-    - cron: "30 5 * * *"   # 5:30 AM UTC = 11:00 AM IST  (adjust if needed)
-  workflow_dispatch:        # allow manual trigger from GitHub Actions UI
+    - cron: "30 5 * * *"
+  workflow_dispatch:
 
 jobs:
   post-daily-news:
@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: pip install Pillow requests
 
-      - name: Run Top21News pipeline
+      - name: Run pipeline
         env:
           GEMINI_API_KEY:  ${{ secrets.GEMINI_API_KEY }}
           IMGBB_API_KEY:   ${{ secrets.IMGBB_API_KEY }}
