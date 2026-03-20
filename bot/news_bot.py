@@ -1,7 +1,6 @@
 import os
 import requests
 import feedparser
-import google.genai as genai
 from PIL import Image, ImageDraw
 from datetime import datetime
 import textwrap
@@ -35,7 +34,6 @@ def fetch_news(query, count):
     return articles
 
 def ai_summarize(articles, category, count):
-    client = genai.Client(api_key=GEMINI_API_KEY)
     headlines = "\n".join([f"{i+1}. {a['title']}" for i, a in enumerate(articles)])
     prompt = f"""You are a news editor for Instagram account @Top21News.
 From these {category} headlines, pick the {count} most interesting ones.
@@ -52,11 +50,16 @@ Respond ONLY in this exact JSON format with no extra text and no markdown backti
     "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5"
   }}
 ]"""
-    response = client.models.generate_content(
-        model="gemini-1.5-pro",
-        contents=prompt
+
+    response = requests.post(
+        f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={GEMINI_API_KEY}",
+        headers={"Content-Type": "application/json"},
+        json={"contents": [{"parts": [{"text": prompt}]}]}
     )
-    text = response.text.strip()
+    result = response.json()
+    if "error" in result:
+        raise Exception(f"{result['error']['code']} {result['error']['message']}")
+    text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
     text = text.replace("```json", "").replace("```", "").strip()
     return json.loads(text)
 
