@@ -18,7 +18,7 @@ from generate_card import create_news_card, create_cover_card
 # ── Config ────────────────────────────────────────────────────────────────────
 GEMINI_API_KEY  = os.environ["GEMINI_API_KEY"]
 IMGBB_API_KEY   = os.environ["IMGBB_API_KEY"]
-IG_USER_ID      = os.environ["IG_USER_ID"]
+IG_USER_ID      = os.environ["IG_ACCOUNT_ID"]
 IG_ACCESS_TOKEN = os.environ["IG_ACCESS_TOKEN"]
 
 TOTAL_STORIES    = 21
