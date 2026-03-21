@@ -319,8 +319,8 @@ def main():
             published.append(post_id)
 
             if post_idx < TOTAL_POSTS - 1:
-                print(f"\n  ⏸️  Waiting 45s before next post…")
-                time.sleep(45)
+                print(f"\n  ⏸️  Waiting 120s before next post…")
+                time.sleep(120)
 
     print(f"\n🎉 Done! {len(published)} posts published.")
     for i, pid in enumerate(published, 1):
