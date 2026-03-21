@@ -31,16 +31,6 @@ HASHTAGS = (
     "#Headlines #NewsUpdate #InstaNews #trending #news"
 )
 
-# Fallback list — tried in order until one works
-GEMINI_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-001",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-001",
-    "gemini-1.5-pro",
-    "gemini-pro",
-]
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # STEP 1 — Fetch 21 stories from Gemini
@@ -230,21 +220,9 @@ def ig_create_carousel(children_ids: list[str], caption: str) -> str:
     })["id"]
 
 
-def ig_wait_ready(container_id: str, retries=12, delay=6) -> bool:
-    for attempt in range(retries):
-        resp = requests.get(
-            f"https://graph.facebook.com/v19.0/{container_id}",
-            params={"fields": "status_code", "access_token": IG_ACCESS_TOKEN},
-            timeout=15,
-        )
-        status = resp.json().get("status_code", "")
-        if status == "FINISHED":
-            return True
-        if status == "ERROR":
-            raise RuntimeError(f"Container {container_id} errored on Instagram")
-        print(f"     ⏳ Status: {status} (attempt {attempt+1}/{retries})")
-        time.sleep(delay)
-    return False
+def ig_wait_ready(container_id: str) -> None:
+    print(f"  Sleeping 20s for Instagram to process…")
+    time.sleep(20)
 
 
 def ig_publish(container_id: str) -> str:
