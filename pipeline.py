@@ -273,7 +273,7 @@ def post_carousel(urls: list[str], part_num: int, story_start: int, story_end: i
     for url in urls:
         cid = ig_create_item(url)
         children_ids.append(cid)
-        time.sleep(2)
+        time.sleep(5)
 
     print(f"  Creating carousel container…")
     carousel_id = ig_create_carousel(children_ids, caption)
@@ -283,6 +283,8 @@ def post_carousel(urls: list[str], part_num: int, story_start: int, story_end: i
     time.sleep(10)
     ig_wait_ready(carousel_id)
 
+     print(f"  Waiting 30s before publish…")
+    time.sleep(30)
     print(f"  Publishing…")
     post_id = ig_publish(carousel_id)
     print(f"  ✅ Published! Media ID: {post_id}")
