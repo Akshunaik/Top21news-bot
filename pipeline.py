@@ -161,7 +161,8 @@ def upload_to_imgbb(path: str) -> str:
         timeout=60,
     )
     resp.raise_for_status()
-    return resp.json()["data"]["url"]
+    return resp.json()["data"]["image"]["url"]
+
 
 
 def upload_group(paths: list[str]) -> list[str]:
