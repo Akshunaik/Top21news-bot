@@ -161,7 +161,10 @@ def upload_to_imgbb(path: str) -> str:
         timeout=60,
     )
     resp.raise_for_status()
-    return resp.json()["data"]["image"]["url"]
+    url = resp.json()["data"]["image"]["url"]
+    print(f"     🔗 URL: {url}")
+    return url
+
 
 
 
