@@ -153,15 +153,21 @@ def generate_cards(news: list[dict], work_dir: str) -> list[list[str]]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def upload_to_imgbb(path: str) -> str:
+    import hashlib
+    cloud  = os.environ["CLOUDINARY_CLOUD_NAME"]
+    apikey = os.environ["CLOUDINARY_API_KEY"]
+    secret = os.environ["CLOUDINARY_API_SECRET"]
+    ts     = str(int(time.time()))
+    sig    = hashlib.sha1(f"timestamp={ts}{secret}".encode()).hexdigest()
     with open(path, "rb") as f:
-        encoded = base64.b64encode(f.read()).decode()
-    resp = requests.post(
-        "https://api.imgbb.com/1/upload",
-        data={"key": IMGBB_API_KEY, "image": encoded},
-        timeout=60,
-    )
+        resp = requests.post(
+            f"https://api.cloudinary.com/v1_1/{cloud}/image/upload",
+            data={"api_key": apikey, "timestamp": ts, "signature": sig},
+            files={"file": f},
+            timeout=60,
+        )
     resp.raise_for_status()
-    url = resp.json()["data"]["image"]["url"]
+    url = resp.json()["secure_url"]
     print(f"     🔗 URL: {url}")
     return url
 
@@ -199,8 +205,12 @@ def _ig_post(endpoint: str, data: dict, retries: int = 5, delay: int = 15) -> di
         
         print(f"   ⚠️  Instagram attempt {attempt}/{retries} — code {code}: {msg}")
         
-        if is_transient and attempt < retries:
-            wait = delay * attempt   # 15s, 30s, 45s, 60s
+        if code == 4 and attempt < retries:
+            wait = 300  # wait 5 mins on rate limit
+            print(f"   ⏳ Rate limit hit, waiting {wait}s…")
+            time.sleep(wait)
+        elif is_transient and attempt < retries:
+            wait = delay * attempt
             print(f"   ⏳ Transient error, retrying in {wait}s…")
             time.sleep(wait)
         else:
