@@ -1,8 +1,8 @@
 name: Top21News Daily Post
 
 on:
-  schedule:
-    - cron: "30 5 * * *"
+  #schedule:
+  # - cron: "30 5 * * *"
   workflow_dispatch:
 
 jobs:
