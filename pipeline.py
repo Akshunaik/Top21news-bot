@@ -206,7 +206,7 @@ def _ig_post(endpoint: str, data: dict, retries: int = 5, delay: int = 15) -> di
         print(f"   ⚠️  Instagram attempt {attempt}/{retries} — code {code}: {msg}")
         
         if code == 4 and attempt < retries:
-            wait = 300  # wait 5 mins on rate limit
+            wait = 60  # wait 1 min on rate limit
             print(f"   ⏳ Rate limit hit, waiting {wait}s…")
             time.sleep(wait)
         elif is_transient and attempt < retries:
