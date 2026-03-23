@@ -21,7 +21,7 @@ jobs:
         run: pip install Pillow requests
 
       - name: Run pipeline
-       env:
+        env:
           GEMINI_API_KEY:        ${{ secrets.GEMINI_API_KEY }}
           IMGBB_API_KEY:         ${{ secrets.IMGBB_API_KEY }}
           IG_ACCOUNT_ID:         ${{ secrets.IG_ACCOUNT_ID }}
