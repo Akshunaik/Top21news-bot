@@ -1,32 +1,29 @@
-name: Top21News Daily Post
+name: Top21News Daily Bot
 
 on:
-  #schedule:
-  # - cron: "30 5 * * *"
+  schedule:
+    - cron: '30 2 * * *'
   workflow_dispatch:
 
 jobs:
-  post-daily-news:
+  post-news:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install Pillow requests
+        run: pip install -r requirements.txt
 
-      - name: Run pipeline
+      - name: Run news bot
         env:
-          GEMINI_API_KEY:        ${{ secrets.GEMINI_API_KEY }}
-          IMGBB_API_KEY:         ${{ secrets.IMGBB_API_KEY }}
-          IG_ACCOUNT_ID:         ${{ secrets.IG_ACCOUNT_ID }}
-          IG_ACCESS_TOKEN:       ${{ secrets.IG_ACCESS_TOKEN }}
-          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
-          CLOUDINARY_API_KEY:    ${{ secrets.CLOUDINARY_API_KEY }}
-          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
-        run: python pipeline.py
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_ACCOUNT_ID: ${{ secrets.IG_ACCOUNT_ID }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+        run: python bot/news_bot.py
