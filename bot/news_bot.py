@@ -103,7 +103,7 @@ def upload_image(filepath):
 
 def post_to_instagram(image_url, caption, hashtags):
     if not IG_ACCESS_TOKEN:
-        print(f"  [SKIP] Instagram not configured yet.")
+        print(f"  [SKIP] Instagram not configured.")
         return True
     full_caption = f"{caption}\n\n{hashtags}\n\n#Top21News #DailyNews #NewsUpdate"
     r = requests.post(
