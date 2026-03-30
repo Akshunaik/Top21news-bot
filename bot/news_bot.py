@@ -168,24 +168,24 @@ def create_story_image(headline, caption, category, color, index):
     # Subtle rule
     draw.line([(50, 95), (W - 50, 95)], fill="#1E3048", width=1)
 
-    # Headline (large, white, bold)
-    f_headline = load_font(56, bold=True)
-    wrapped = textwrap.wrap(headline, width=22)[:5]
-    y = 240
+    # Headline — smaller font, more lines, wider wrap
+    f_headline = load_font(42, bold=True)
+    wrapped = textwrap.wrap(headline, width=30)[:6]
+    y = 180
     for line in wrapped:
         draw.text((W // 2, y), line, fill="#FFFFFF", font=f_headline, anchor="mm")
-        y += 78
+        y += 62
 
     # Divider line
-    draw.line([(80, y + 28), (W - 80, y + 28)], fill=(r, g, b), width=2)
+    draw.line([(80, y + 22), (W - 80, y + 22)], fill=(r, g, b), width=2)
 
-    # Caption (smaller, muted)
-    f_caption = load_font(36)
-    wrapped_cap = textwrap.wrap(caption, width=40)[:3]
-    y += 66
+    # Caption — longer, more lines, brighter
+    f_caption = load_font(34)
+    wrapped_cap = textwrap.wrap(caption, width=52)[:5]
+    y += 56
     for line in wrapped_cap:
-        draw.text((W // 2, y), line, fill="#6A8AAA", font=f_caption, anchor="mm")
-        y += 50
+        draw.text((W // 2, y), line, fill="#8AACCC", font=f_caption, anchor="mm")
+        y += 46
 
     # Story number badge — bottom right
     f_num = load_font(34, bold=True)
@@ -297,7 +297,24 @@ def main():
         print("No stories collected. Exiting.")
         return
 
-    # ── 2. Group into 3 parts of 7 ──
+    # ── 2. Interleave by category so each carousel gets a mix ──
+    from collections import defaultdict
+    buckets = defaultdict(list)
+    for post in all_posts:
+        buckets[post["category"]].append(post)
+
+    # Round-robin: pick one story from each category in turn
+    mixed = []
+    bucket_lists = list(buckets.values())
+    max_len = max(len(b) for b in bucket_lists)
+    for i in range(max_len):
+        for bucket in bucket_lists:
+            if i < len(bucket):
+                mixed.append(bucket[i])
+    all_posts = mixed[:21]
+    print(f"Category order after mixing: {[p['category'] for p in all_posts]}")
+
+    # ── 3. Group into 3 parts of 7 ──
     STORIES_PER_PART = 7
     parts       = [all_posts[i: i + STORIES_PER_PART] for i in range(0, len(all_posts), STORIES_PER_PART)]
     total_parts = len(parts)
