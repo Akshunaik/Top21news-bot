@@ -172,7 +172,7 @@ def create_cover_image(part_num, total_parts, story_start, story_end):
 
 
 # ── STORY IMAGE ───────────────────────────────────────────────────────────────
-def create_story_image(headline, caption, source, source_url, category, color, index, total=21):
+def create_story_image(headline, caption, source, category, color, index, total=21):
     """Story card: left-aligned headline, solid pill, content box, source, branding bar."""
     img  = Image.new("RGB", (W, H), color=BG_COLOR)
     draw = ImageDraw.Draw(img)
@@ -220,7 +220,7 @@ def create_story_image(headline, caption, source, source_url, category, color, i
     box_x1 = MARGIN
     box_y1 = hl_y
     box_x2 = W - MARGIN
-    box_y2 = H - 155
+    box_y2 = H - 140
     draw_rounded_rect(draw, [box_x1, box_y1, box_x2, box_y2], radius=18,
                       fill=hex_to_rgb(BG_CARD_COLOR))
 
@@ -233,18 +233,10 @@ def create_story_image(headline, caption, source, source_url, category, color, i
         cap_y += 56
 
     # ── Bottom row ──
-    f_src  = load_font(28)
-    f_date = load_font(28)
-    # Show "Source: Name" on first line, shortened URL on second
-    draw.text((MARGIN, H - 122), f"Source: {source}", fill="#3A5A7A", font=f_src)
-    if source_url:
-        # Shorten URL: strip https:// and truncate to 55 chars
-        short_url = source_url.replace("https://", "").replace("http://", "")
-        if len(short_url) > 55:
-            short_url = short_url[:52] + "..."
-        draw.text((MARGIN, H - 92), short_url, fill="#1E3A5A", font=load_font(24))
-    date_label = datetime.now().strftime("%B %d, %Y")
-    draw.text((W - MARGIN, H - 110), date_label, fill="#3A5A7A", font=f_date, anchor="rt")
+    f_src  = load_font(30)
+    f_date = load_font(30)
+    draw.text((MARGIN, H - 110), f"Source: {source}", fill="#3A5A7A", font=f_src)
+    draw.text((W - MARGIN, H - 110), datetime.now().strftime("%B %d, %Y"), fill="#3A5A7A", font=f_date, anchor="rt")
 
     # ── Branding bar at very bottom ──
     draw.rectangle([0, H - 62, W, H], fill="#060E18")
@@ -391,7 +383,6 @@ def main():
             print(f"  Creating story image {story_idx}...")
             image_files.append(create_story_image(
                 post["headline"], post["caption"], post.get("source", "Top21News"),
-                post.get("source_url", ""),
                 post["category"], post["color"], story_idx, total=21,
             ))
 
@@ -410,11 +401,27 @@ def main():
             print(f"  ⚠️ Upload incomplete ({len(image_urls)}/{len(image_files)}), skipping Part {part_num}")
             continue
 
+        # Build caption with story links + expanded hashtags
+        story_links = ""
+        for i, post in enumerate(part_stories):
+            story_num = story_start + i
+            url = post.get("source_url", "").strip()
+            if url:
+                story_links += f"📌 Story {story_num}: {url}\n"
+
+        hashtags = (
+            "#Top21News #DailyNews #NewsUpdate #NewsReel #BreakingNews #StayInformed "
+            "#WorldNews #NewsOfTheDay #CurrentEvents #Headlines #NewsAlert #TodaysNews "
+            "#InformationIspower #NewsDigest #GlobalNews #NewsIn21 #TopStories "
+            "#MustRead #NewsForYou #DailyUpdate #SwipeToRead"
+        )
+
         caption = (
             f"📰 21 News Stories — Part {part_num} of {total_parts} · Stories {story_start}–{story_end}\n\n"
             f"Top news delivered daily — fully automated ⚡\n"
             f"Swipe. Read. Stay Informed. 👋\n\n"
-            f"#Top21News #DailyNews #NewsUpdate #NewsReel #BreakingNews #StayInformed"
+            f"🔗 Read Full Stories:\n{story_links}\n"
+            f"{hashtags}"
         )
         post_carousel(image_urls, caption)
 
