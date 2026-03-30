@@ -7,6 +7,7 @@ import textwrap
 import json
 import time
 import base64
+from collections import defaultdict
 
 # ── ENV ───────────────────────────────────────────────────────────────────────
 GEMINI_API_KEY  = os.environ["GEMINI_API_KEY"]
@@ -25,9 +26,10 @@ CATEGORIES = [
 ]
 
 # ── DESIGN CONSTANTS ──────────────────────────────────────────────────────────
-BG_COLOR     = "#0D1B2A"   # Navy dark blue
-ACCENT_COLOR = "#00D4FF"   # Cyan accent
-W, H         = 1080, 1080
+BG_COLOR      = "#0D1B2A"   # Navy dark blue
+BG_CARD_COLOR = "#0A1628"   # Slightly darker for content box
+ACCENT_COLOR  = "#00D4FF"   # Cyan accent
+W, H          = 1080, 1080
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def hex_to_rgb(hex_color):
@@ -35,7 +37,6 @@ def hex_to_rgb(hex_color):
     return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
 def load_font(size, bold=False):
-    """Try system fonts on Ubuntu runner, fallback to PIL default."""
     paths = (
         [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -54,6 +55,16 @@ def load_font(size, bold=False):
             continue
     return ImageFont.load_default()
 
+def draw_rounded_rect(draw, xy, radius, fill):
+    """Draw a filled rounded rectangle."""
+    x1, y1, x2, y2 = xy
+    draw.rectangle([x1 + radius, y1, x2 - radius, y2], fill=fill)
+    draw.rectangle([x1, y1 + radius, x2, y2 - radius], fill=fill)
+    draw.ellipse([x1, y1, x1 + radius*2, y1 + radius*2], fill=fill)
+    draw.ellipse([x2 - radius*2, y1, x2, y1 + radius*2], fill=fill)
+    draw.ellipse([x1, y2 - radius*2, x1 + radius*2, y2], fill=fill)
+    draw.ellipse([x2 - radius*2, y2 - radius*2, x2, y2], fill=fill)
+
 # ── NEWS FETCHING ─────────────────────────────────────────────────────────────
 def fetch_news(query, count):
     url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
@@ -71,7 +82,7 @@ def ai_summarize(articles, category, count):
     headlines = "\n".join([f"{i+1}. {a['title']}" for i, a in enumerate(articles)])
     prompt = f"""You are a news editor for Instagram account @Top21News.
 From these {category} headlines, pick the {count} most interesting ones.
-For each, write a punchy 1-sentence Instagram caption (max 150 chars) and 5 relevant hashtags.
+For each, write a 2-3 sentence summary (max 280 chars) and guess the likely news source from the headline.
 
 Headlines:
 {headlines}
@@ -80,7 +91,8 @@ Respond ONLY in this exact JSON format with no extra text and no markdown backti
 [
   {{
     "headline": "original headline here",
-    "caption": "your punchy caption here",
+    "caption": "your 2-3 sentence engaging summary here",
+    "source": "likely publication name e.g. Reuters, CNN, BBC, TechCrunch",
     "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5"
   }}
 ]"""
@@ -97,107 +109,139 @@ Respond ONLY in this exact JSON format with no extra text and no markdown backti
     text = text.replace("```json", "").replace("```", "").strip()
     return json.loads(text)
 
-# ── IMAGE CREATION ────────────────────────────────────────────────────────────
+# ── COVER IMAGE ───────────────────────────────────────────────────────────────
 def create_cover_image(part_num, total_parts, story_start, story_end):
-    """Navy blue cover card: big '21 NEWS STORIES' with part info."""
+    """Cover card: @Top21News with lines, big 21, cyan NEWS STORIES, part info."""
     img  = Image.new("RGB", (W, H), color=BG_COLOR)
     draw = ImageDraw.Draw(img)
-    bg_r, bg_g, bg_b = hex_to_rgb(BG_COLOR)
+    ac_r, ac_g, ac_b = hex_to_rgb(ACCENT_COLOR)
 
-    # Top cyan accent line
-    draw.rectangle([0, 0, W, 8], fill=ACCENT_COLOR)
+    # Left vertical cyan accent bar
+    draw.rectangle([0, 0, 7, H], fill=ACCENT_COLOR)
 
-    # @Top21News — top left
-    f_handle = load_font(36)
-    draw.text((50, 45), "@Top21News", fill="#FFFFFF", font=f_handle)
+    # Top thin cyan line
+    draw.rectangle([0, 0, W, 5], fill=ACCENT_COLOR)
 
-    # Bookmark icon — top right (two rectangles simulate icon)
-    bx1, by1, bx2, by2 = W - 85, 32, W - 52, 74
-    draw.rectangle([bx1, by1, bx2, by2], outline="#FFFFFF", width=2)
-    draw.polygon([(bx1, by2), (bx1 + (bx2 - bx1) // 2, by2 - 14), (bx2, by2)],
-                 fill=(bg_r, bg_g, bg_b))
-
-    # Subtle horizontal rule below header
-    draw.line([(50, 95), (W - 50, 95)], fill="#1E3048", width=1)
+    # "@Top21News" centered with horizontal lines on both sides
+    f_handle = load_font(42, bold=True)
+    label    = "@Top21News"
+    bbox     = draw.textbbox((0, 0), label, font=f_handle)
+    lw       = bbox[2] - bbox[0]
+    cx       = W // 2
+    ty       = 68
+    draw.text((cx, ty), label, fill=ACCENT_COLOR, font=f_handle, anchor="mm")
+    # Lines extending from both sides of the text
+    gap   = 24
+    lx1   = 50
+    lx2   = cx - lw // 2 - gap
+    rx1   = cx + lw // 2 + gap
+    rx2   = W - 50
+    draw.line([(lx1, ty), (lx2, ty)], fill=ACCENT_COLOR, width=2)
+    draw.line([(rx1, ty), (rx2, ty)], fill=ACCENT_COLOR, width=2)
 
     # Giant "21"
-    f_huge = load_font(300, bold=True)
-    draw.text((W // 2, H // 2 - 90), "21", fill="#FFFFFF", font=f_huge, anchor="mm")
+    f_huge = load_font(320, bold=True)
+    draw.text((cx, H // 2 - 80), "21", fill="#FFFFFF", font=f_huge, anchor="mm")
 
-    # "NEWS STORIES"
-    f_title = load_font(74, bold=True)
-    draw.text((W // 2, H // 2 + 125), "NEWS STORIES", fill="#FFFFFF", font=f_title, anchor="mm")
+    # "NEWS STORIES" in cyan bold
+    f_title = load_font(80, bold=True)
+    draw.text((cx, H // 2 + 145), "NEWS STORIES", fill=ACCENT_COLOR, font=f_title, anchor="mm")
 
-    # Part info
-    f_part = load_font(38)
-    part_text = f"PART {part_num} OF {total_parts}   ·   STORIES {story_start} \u2013 {story_end}"
-    draw.text((W // 2, H // 2 + 210), part_text, fill=ACCENT_COLOR, font=f_part, anchor="mm")
+    # Cyan separator line
+    draw.line([(120, H // 2 + 198), (W - 120, H // 2 + 198)], fill=ACCENT_COLOR, width=2)
 
-    # Tagline
-    f_tag = load_font(30)
-    draw.text((W // 2, H // 2 + 275), "Subscribe to more \u2193", fill="#4A6A8A", font=f_tag, anchor="mm")
+    # "PART X OF Y  ·  STORIES A – B" white bold
+    f_part = load_font(40, bold=True)
+    part_text = f"PART {part_num} OF {total_parts}   \u00b7   STORIES {story_start} \u2013 {story_end}"
+    draw.text((cx, H // 2 + 252), part_text, fill="#FFFFFF", font=f_part, anchor="mm")
+
+    # "Swipe left to read  ›"
+    f_swipe = load_font(34)
+    draw.text((cx, H // 2 + 316), "Swipe left to read  \u203a", fill="#4A7A9B", font=f_swipe, anchor="mm")
 
     # Bottom date
-    f_date = load_font(28)
-    draw.text((W // 2, H - 42), datetime.now().strftime("%B %d, %Y"), fill="#2A3A4A", font=f_date, anchor="mm")
+    f_date = load_font(30)
+    draw.text((cx, H - 48), datetime.now().strftime("%B %d, %Y"), fill="#2A4A6A", font=f_date, anchor="mm")
 
     filename = f"cover_{part_num}.png"
     img.save(filename)
     return filename
 
 
-def create_story_image(headline, caption, category, color, index):
-    """Navy blue story card matching the approved design."""
+# ── STORY IMAGE ───────────────────────────────────────────────────────────────
+def create_story_image(headline, caption, source, category, color, index, total=21):
+    """Story card: left-aligned headline, solid pill, content box, source, branding bar."""
     img  = Image.new("RGB", (W, H), color=BG_COLOR)
     draw = ImageDraw.Draw(img)
     r, g, b = hex_to_rgb(color)
 
-    # Top category-color accent line
-    draw.rectangle([0, 0, W, 8], fill=(r, g, b))
+    # Left vertical accent bar (category color)
+    draw.rectangle([0, 0, 7, H], fill=(r, g, b))
 
-    # Category pill — top left
-    f_cat  = load_font(28, bold=True)
-    f_hdl  = load_font(28)
-    cat_w  = len(category) * 15 + 40
-    draw.rectangle([40, 32, 40 + cat_w, 76], outline=(r, g, b), width=2)
-    draw.text((55, 54), f"#{category.upper()}", fill=(r, g, b), font=f_cat, anchor="lm")
+    # Top thin category-color line
+    draw.rectangle([0, 0, W, 5], fill=(r, g, b))
 
-    # @Top21News — top right
-    draw.text((W - 55, 54), "@Top21News", fill="#FFFFFF", font=f_hdl, anchor="rm")
+    MARGIN = 60   # left margin for content
 
-    # Subtle rule
-    draw.line([(50, 95), (W - 50, 95)], fill="#1E3048", width=1)
+    # ── Top row ──
+    # Solid filled category pill — top left
+    f_cat   = load_font(30, bold=True)
+    cat_lbl = f"#{category.upper()}"
+    cbbox   = draw.textbbox((0, 0), cat_lbl, font=f_cat)
+    cw      = cbbox[2] - cbbox[0] + 36
+    ch      = 50
+    cy1     = 38
+    draw_rounded_rect(draw, [MARGIN, cy1, MARGIN + cw, cy1 + ch], radius=10, fill=(r, g, b))
+    draw.text((MARGIN + cw // 2, cy1 + ch // 2), cat_lbl, fill="#FFFFFF", font=f_cat, anchor="mm")
 
-    # Headline — smaller font, more lines, wider wrap
-    f_headline = load_font(42, bold=True)
-    wrapped = textwrap.wrap(headline, width=30)[:6]
-    y = 180
+    # Story number "X / 21" top right — cyan bold
+    f_num_big = load_font(42, bold=True)
+    f_num_sml = load_font(26)
+    num_str   = f"{index} / {total}"
+    draw.text((W - MARGIN, 38), num_str, fill=ACCENT_COLOR, font=f_num_big, anchor="rt")
+    draw.text((W - MARGIN, 90), "swipe for more  \u203a", fill="#3A5A7A", font=f_num_sml, anchor="rt")
+
+    # ── Headline — LEFT aligned, large bold white ──
+    f_hl     = load_font(58, bold=True)
+    hl_y     = 130
+    wrapped  = textwrap.wrap(headline, width=24)[:5]
     for line in wrapped:
-        draw.text((W // 2, y), line, fill="#FFFFFF", font=f_headline, anchor="mm")
-        y += 62
+        draw.text((MARGIN, hl_y), line, fill="#FFFFFF", font=f_hl)
+        hl_y += 72
 
-    # Divider line
-    draw.line([(80, y + 22), (W - 80, y + 22)], fill=(r, g, b), width=2)
+    # Short cyan underline below headline
+    draw.rectangle([MARGIN, hl_y + 8, MARGIN + 90, hl_y + 16], fill=(r, g, b))
+    hl_y += 38
 
-    # Caption — longer, more lines, brighter
-    f_caption = load_font(34)
-    wrapped_cap = textwrap.wrap(caption, width=52)[:5]
-    y += 56
-    for line in wrapped_cap:
-        draw.text((W // 2, y), line, fill="#8AACCC", font=f_caption, anchor="mm")
-        y += 46
+    # ── Content box — dark rounded rectangle ──
+    box_x1 = MARGIN
+    box_y1 = hl_y
+    box_x2 = W - MARGIN
+    box_y2 = H - 140
+    draw_rounded_rect(draw, [box_x1, box_y1, box_x2, box_y2], radius=18,
+                      fill=hex_to_rgb(BG_CARD_COLOR))
 
-    # Story number badge — bottom right
-    f_num = load_font(34, bold=True)
-    draw.ellipse([W - 112, H - 112, W - 42, H - 42], outline=(r, g, b), width=2)
-    draw.text((W - 77, H - 77), str(index), fill=(r, g, b), font=f_num, anchor="mm")
+    # Caption text inside box
+    f_cap     = load_font(38)
+    cap_lines = textwrap.wrap(caption, width=38)[:6]
+    cap_y     = box_y1 + 44
+    for line in cap_lines:
+        draw.text((box_x1 + 36, cap_y), line, fill="#C8D8E8", font=f_cap)
+        cap_y += 56
 
-    # Bottom accent bar
-    draw.rectangle([0, H - 10, W, H], fill=(r, g, b))
+    # ── Bottom row ──
+    f_src  = load_font(30)
+    f_date = load_font(30)
+    src_label  = f"Source: {source}"
+    date_label = datetime.now().strftime("%B %d, %Y")
+    draw.text((MARGIN, H - 110), src_label,  fill="#3A5A7A", font=f_src)
+    draw.text((W - MARGIN, H - 110), date_label, fill="#3A5A7A", font=f_date, anchor="rt")
 
-    # Date
-    f_date = load_font(28)
-    draw.text((W // 2, H - 35), datetime.now().strftime("%B %d, %Y"), fill="#2A3A4A", font=f_date, anchor="mm")
+    # ── Branding bar at very bottom ──
+    draw.rectangle([0, H - 62, W, H], fill="#060E18")
+    f_brand = load_font(26, bold=True)
+    draw.text((W // 2, H - 31), "TOP21NEWS  \u2022\u2022\u2022  21 STORIES DAILY",
+              fill="#1A3A5A", font=f_brand, anchor="mm")
 
     filename = f"story_{index:02d}.png"
     img.save(filename)
@@ -219,16 +263,15 @@ def post_carousel(image_urls, caption):
         print("  [SKIP] Instagram not configured.")
         return True
 
-    # Step 1 — individual carousel item containers
     container_ids = []
     for i, url in enumerate(image_urls):
         print(f"    Creating container {i+1}/{len(image_urls)}...")
         r = requests.post(
             f"https://graph.facebook.com/v18.0/{IG_ACCOUNT_ID}/media",
             data={
-                "image_url":         url,
-                "is_carousel_item":  "true",
-                "access_token":      IG_ACCESS_TOKEN,
+                "image_url":        url,
+                "is_carousel_item": "true",
+                "access_token":     IG_ACCESS_TOKEN,
             },
         )
         result = r.json()
@@ -238,7 +281,6 @@ def post_carousel(image_urls, caption):
         container_ids.append(result["id"])
         time.sleep(3)
 
-    # Step 2 — carousel container
     print(f"    Creating carousel ({len(container_ids)} items)...")
     r = requests.post(
         f"https://graph.facebook.com/v18.0/{IG_ACCOUNT_ID}/media",
@@ -256,7 +298,6 @@ def post_carousel(image_urls, caption):
     carousel_id = result["id"]
     time.sleep(8)
 
-    # Step 3 — publish
     print(f"    Publishing carousel...")
     r2 = requests.post(
         f"https://graph.facebook.com/v18.0/{IG_ACCOUNT_ID}/media_publish",
@@ -273,7 +314,7 @@ def post_carousel(image_urls, caption):
 def main():
     print(f"Top21News Bot starting {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
-    # ── 1. Collect all 21 stories ──
+    # 1. Collect all 21 stories
     all_posts = []
     for category in CATEGORIES:
         print(f"Fetching {category['name']} news...")
@@ -284,42 +325,39 @@ def main():
             for post in posts:
                 post["category"] = category["name"]
                 post["color"]    = category["color"]
+                if "source" not in post:
+                    post["source"] = category["name"]
             all_posts.extend(posts)
             print(f"  Summarised {len(posts)} stories")
         except Exception as e:
             print(f"  AI failed: {e}")
 
-    # Trim to exactly 21
     all_posts = all_posts[:21]
     print(f"\nTotal stories collected: {len(all_posts)}")
-
     if len(all_posts) == 0:
         print("No stories collected. Exiting.")
         return
 
-    # ── 2. Interleave by category so each carousel gets a mix ──
-    from collections import defaultdict
-    buckets = defaultdict(list)
+    # 2. Round-robin mix by category
+    buckets      = defaultdict(list)
     for post in all_posts:
         buckets[post["category"]].append(post)
-
-    # Round-robin: pick one story from each category in turn
-    mixed = []
+    mixed        = []
     bucket_lists = list(buckets.values())
-    max_len = max(len(b) for b in bucket_lists)
+    max_len      = max(len(b) for b in bucket_lists)
     for i in range(max_len):
         for bucket in bucket_lists:
             if i < len(bucket):
                 mixed.append(bucket[i])
     all_posts = mixed[:21]
-    print(f"Category order after mixing: {[p['category'] for p in all_posts]}")
+    print(f"Category order: {[p['category'] for p in all_posts]}")
 
-    # ── 3. Group into 3 parts of 7 ──
+    # 3. Group into 3 parts of 7
     STORIES_PER_PART = 7
     parts       = [all_posts[i: i + STORIES_PER_PART] for i in range(0, len(all_posts), STORIES_PER_PART)]
     total_parts = len(parts)
 
-    # ── 3. Build & post each carousel ──
+    # 4. Build & post each carousel
     for part_idx, part_stories in enumerate(parts):
         part_num    = part_idx + 1
         story_start = part_idx * STORIES_PER_PART + 1
@@ -334,20 +372,18 @@ def main():
 
         # Cover
         print(f"  Creating cover image...")
-        cover_file = create_cover_image(part_num, total_parts, story_start, story_end)
-        image_files.append(cover_file)
+        image_files.append(create_cover_image(part_num, total_parts, story_start, story_end))
 
         # 7 story images
         for i, post in enumerate(part_stories):
             story_idx = story_start + i
             print(f"  Creating story image {story_idx}...")
-            story_file = create_story_image(
-                post["headline"], post["caption"],
-                post["category"], post["color"], story_idx,
-            )
-            image_files.append(story_file)
+            image_files.append(create_story_image(
+                post["headline"], post["caption"], post.get("source", "Top21News"),
+                post["category"], post["color"], story_idx, total=21,
+            ))
 
-        # Upload all 8 images
+        # Upload
         print(f"  Uploading {len(image_files)} images to ImgBB...")
         for img_file in image_files:
             try:
@@ -359,10 +395,9 @@ def main():
                 print(f"    ❌ Upload failed for {img_file}: {e}")
 
         if len(image_urls) < len(image_files):
-            print(f"  ⚠️  Upload incomplete ({len(image_urls)}/{len(image_files)}), skipping Part {part_num}")
+            print(f"  ⚠️ Upload incomplete ({len(image_urls)}/{len(image_files)}), skipping Part {part_num}")
             continue
 
-        # Post carousel
         caption = (
             f"📰 21 News Stories — Part {part_num} of {total_parts} · Stories {story_start}–{story_end}\n\n"
             f"Top news delivered daily — fully automated ⚡\n"
@@ -371,7 +406,6 @@ def main():
         )
         post_carousel(image_urls, caption)
 
-        # Pause between carousels (avoid rate limit)
         if part_num < total_parts:
             print(f"  ⏳ Waiting 60s before next carousel...")
             time.sleep(60)
