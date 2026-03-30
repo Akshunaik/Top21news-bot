@@ -74,15 +74,17 @@ def fetch_news(query, count):
         articles.append({
             "title":   entry.title,
             "summary": entry.get("summary", "")[:300],
+            "link":    entry.get("link", ""),
         })
     return articles
 
 # ── AI SUMMARIZE ──────────────────────────────────────────────────────────────
 def ai_summarize(articles, category, count):
-    headlines = "\n".join([f"{i+1}. {a['title']}" for i, a in enumerate(articles)])
+    headlines = "\n".join([f"{i+1}. {a['title']} | URL: {a.get('link','')}" for i, a in enumerate(articles)])
     prompt = f"""You are a news editor for Instagram account @Top21News.
 From these {category} headlines, pick the {count} most interesting ones.
-For each, write a 2-3 sentence summary (max 280 chars) and guess the likely news source from the headline.
+For each, write a clear 2-3 sentence summary. Every sentence MUST be complete — never cut off mid-sentence.
+Also identify the likely original publication name from the headline or URL.
 
 Headlines:
 {headlines}
@@ -91,8 +93,9 @@ Respond ONLY in this exact JSON format with no extra text and no markdown backti
 [
   {{
     "headline": "original headline here",
-    "caption": "your 2-3 sentence engaging summary here",
-    "source": "likely publication name e.g. Reuters, CNN, BBC, TechCrunch",
+    "caption": "your complete 2-3 sentence summary here. Each sentence must end with a full stop.",
+    "source": "publication name e.g. Reuters, CNN, BBC, TechCrunch",
+    "source_url": "the article URL from above if available, else empty string",
     "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5"
   }}
 ]"""
@@ -169,7 +172,7 @@ def create_cover_image(part_num, total_parts, story_start, story_end):
 
 
 # ── STORY IMAGE ───────────────────────────────────────────────────────────────
-def create_story_image(headline, caption, source, category, color, index, total=21):
+def create_story_image(headline, caption, source, source_url, category, color, index, total=21):
     """Story card: left-aligned headline, solid pill, content box, source, branding bar."""
     img  = Image.new("RGB", (W, H), color=BG_COLOR)
     draw = ImageDraw.Draw(img)
@@ -217,7 +220,7 @@ def create_story_image(headline, caption, source, category, color, index, total=
     box_x1 = MARGIN
     box_y1 = hl_y
     box_x2 = W - MARGIN
-    box_y2 = H - 140
+    box_y2 = H - 155
     draw_rounded_rect(draw, [box_x1, box_y1, box_x2, box_y2], radius=18,
                       fill=hex_to_rgb(BG_CARD_COLOR))
 
@@ -230,11 +233,17 @@ def create_story_image(headline, caption, source, category, color, index, total=
         cap_y += 56
 
     # ── Bottom row ──
-    f_src  = load_font(30)
-    f_date = load_font(30)
-    src_label  = f"Source: {source}"
+    f_src  = load_font(28)
+    f_date = load_font(28)
+    # Show "Source: Name" on first line, shortened URL on second
+    draw.text((MARGIN, H - 122), f"Source: {source}", fill="#3A5A7A", font=f_src)
+    if source_url:
+        # Shorten URL: strip https:// and truncate to 55 chars
+        short_url = source_url.replace("https://", "").replace("http://", "")
+        if len(short_url) > 55:
+            short_url = short_url[:52] + "..."
+        draw.text((MARGIN, H - 92), short_url, fill="#1E3A5A", font=load_font(24))
     date_label = datetime.now().strftime("%B %d, %Y")
-    draw.text((MARGIN, H - 110), src_label,  fill="#3A5A7A", font=f_src)
     draw.text((W - MARGIN, H - 110), date_label, fill="#3A5A7A", font=f_date, anchor="rt")
 
     # ── Branding bar at very bottom ──
@@ -327,6 +336,8 @@ def main():
                 post["color"]    = category["color"]
                 if "source" not in post:
                     post["source"] = category["name"]
+                if "source_url" not in post:
+                    post["source_url"] = ""
             all_posts.extend(posts)
             print(f"  Summarised {len(posts)} stories")
         except Exception as e:
@@ -380,6 +391,7 @@ def main():
             print(f"  Creating story image {story_idx}...")
             image_files.append(create_story_image(
                 post["headline"], post["caption"], post.get("source", "Top21News"),
+                post.get("source_url", ""),
                 post["category"], post["color"], story_idx, total=21,
             ))
 
