@@ -256,7 +256,12 @@ def upload_image(filepath):
         "https://api.imgbb.com/1/upload",
         data={"key": IMGBB_API_KEY, "image": img_data},
     )
-    return response.json()["data"]["url"]
+    resp_json = response.json()
+    # data.image.url = direct .png link Instagram can fetch
+    # data.url       = ibb.co viewer page (Instagram rejects this)
+    direct_url = resp_json["data"]["image"]["url"]
+    print(f"      URL: {direct_url[:60]}...")
+    return direct_url
 
 # ── INSTAGRAM CAROUSEL POST ───────────────────────────────────────────────────
 def post_carousel(image_urls, caption):
