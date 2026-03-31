@@ -441,7 +441,7 @@ def main():
         )
         caption = (
             f"📰 21 News Stories — Part {part_num} of {total_parts} · Stories {story_start}–{story_end}\n\n"
-            f"Top news delivered daily — fully automated ⚡\n"
+            f"Top news delivered daily ⚡\n"
             f"Swipe. Read. Stay Informed. 👋\n\n"
             f"{hashtags}"
         )
