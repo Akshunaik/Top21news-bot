@@ -250,17 +250,18 @@ def create_story_image(headline, caption, source, category, color, index, total=
 
 # ── UPLOAD ────────────────────────────────────────────────────────────────────
 def upload_image(filepath):
+    """Upload to catbox.moe — no API key, returns direct URL Instagram can fetch."""
     with open(filepath, "rb") as f:
-        img_data = base64.b64encode(f.read()).decode("utf-8")
-    response = requests.post(
-        "https://api.imgbb.com/1/upload",
-        data={"key": IMGBB_API_KEY, "image": img_data},
-    )
-    resp_json = response.json()
-    # data.image.url = direct .png link Instagram can fetch
-    # data.url       = ibb.co viewer page (Instagram rejects this)
-    direct_url = resp_json["data"]["image"]["url"]
-    print(f"      URL: {direct_url[:60]}...")
+        response = requests.post(
+            "https://catbox.moe/user/api.php",
+            data={"reqtype": "fileupload"},
+            files={"fileToUpload": (os.path.basename(filepath), f, "image/png")},
+            timeout=30,
+        )
+    direct_url = response.text.strip()
+    if not direct_url.startswith("https://"):
+        raise Exception(f"catbox upload failed: {response.text}")
+    print(f"      URL: {direct_url}")
     return direct_url
 
 # ── INSTAGRAM CAROUSEL POST ───────────────────────────────────────────────────
@@ -406,26 +407,16 @@ def main():
             print(f"  ⚠️ Upload incomplete ({len(image_urls)}/{len(image_files)}), skipping Part {part_num}")
             continue
 
-        # Build caption with story links + expanded hashtags
-        story_links = ""
-        for i, post in enumerate(part_stories):
-            story_num = story_start + i
-            url = post.get("source_url", "").strip()
-            if url:
-                story_links += f"📌 Story {story_num}: {url}\n"
-
         hashtags = (
             "#Top21News #DailyNews #NewsUpdate #NewsReel #BreakingNews #StayInformed "
             "#WorldNews #NewsOfTheDay #CurrentEvents #Headlines #NewsAlert #TodaysNews "
-            "#InformationIspower #NewsDigest #GlobalNews #NewsIn21 #TopStories "
+            "#InformationIsPower #NewsDigest #GlobalNews #NewsIn21 #TopStories "
             "#MustRead #NewsForYou #DailyUpdate #SwipeToRead"
         )
-
         caption = (
             f"📰 21 News Stories — Part {part_num} of {total_parts} · Stories {story_start}–{story_end}\n\n"
             f"Top news delivered daily — fully automated ⚡\n"
             f"Swipe. Read. Stay Informed. 👋\n\n"
-            f"🔗 Read Full Stories:\n{story_links}\n"
             f"{hashtags}"
         )
         post_carousel(image_urls, caption)
