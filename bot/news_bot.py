@@ -273,20 +273,29 @@ def post_carousel(image_urls, caption):
     container_ids = []
     for i, url in enumerate(image_urls):
         print(f"    Creating container {i+1}/{len(image_urls)}...")
-        r = requests.post(
-            f"https://graph.facebook.com/v18.0/{IG_ACCOUNT_ID}/media",
-            data={
-                "image_url":        url,
-                "is_carousel_item": "true",
-                "access_token":     IG_ACCESS_TOKEN,
-            },
-        )
-        result = r.json()
-        if "id" not in result:
-            print(f"    [ERROR] Container failed: {result}")
-            return False
+        # Retry up to 3 times for transient errors (code 2)
+        for attempt in range(1, 4):
+            r = requests.post(
+                f"https://graph.facebook.com/v18.0/{IG_ACCOUNT_ID}/media",
+                data={
+                    "image_url":        url,
+                    "is_carousel_item": "true",
+                    "access_token":     IG_ACCESS_TOKEN,
+                },
+            )
+            result = r.json()
+            if "id" in result:
+                break
+            is_transient = result.get("error", {}).get("is_transient", False)
+            if is_transient and attempt < 3:
+                wait = attempt * 15
+                print(f"    [TRANSIENT] Attempt {attempt} failed, retrying in {wait}s...")
+                time.sleep(wait)
+            else:
+                print(f"    [ERROR] Container failed after {attempt} attempt(s): {result}")
+                return False
         container_ids.append(result["id"])
-        time.sleep(3)
+        time.sleep(4)
 
     print(f"    Creating carousel ({len(container_ids)} items)...")
     r = requests.post(
@@ -303,19 +312,27 @@ def post_carousel(image_urls, caption):
         print(f"    [ERROR] Carousel container failed: {result}")
         return False
     carousel_id = result["id"]
-    time.sleep(8)
+    time.sleep(10)
 
     print(f"    Publishing carousel...")
-    r2 = requests.post(
-        f"https://graph.facebook.com/v18.0/{IG_ACCOUNT_ID}/media_publish",
-        data={"creation_id": carousel_id, "access_token": IG_ACCESS_TOKEN},
-    )
-    result = r2.json()
-    if "id" in result:
-        print(f"    ✅ Published! Carousel ID: {result['id']}")
-        return True
-    print(f"    [ERROR] Publish failed: {result}")
-    return False
+    # Retry publish up to 3 times for transient errors
+    for attempt in range(1, 4):
+        r2 = requests.post(
+            f"https://graph.facebook.com/v18.0/{IG_ACCOUNT_ID}/media_publish",
+            data={"creation_id": carousel_id, "access_token": IG_ACCESS_TOKEN},
+        )
+        result = r2.json()
+        if "id" in result:
+            print(f"    ✅ Published! Carousel ID: {result['id']}")
+            return True
+        is_transient = result.get("error", {}).get("is_transient", False)
+        if is_transient and attempt < 3:
+            wait = attempt * 20
+            print(f"    [TRANSIENT] Publish attempt {attempt} failed, retrying in {wait}s...")
+            time.sleep(wait)
+        else:
+            print(f"    [ERROR] Publish failed after {attempt} attempt(s): {result}")
+            return False
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 def main():
