@@ -251,18 +251,27 @@ def create_story_image(headline, caption, source, category, color, index, total=
 # ── UPLOAD ────────────────────────────────────────────────────────────────────
 def upload_image(filepath):
     """Upload to catbox.moe — no API key, returns direct URL Instagram can fetch."""
-    with open(filepath, "rb") as f:
-        response = requests.post(
-            "https://catbox.moe/user/api.php",
-            data={"reqtype": "fileupload"},
-            files={"fileToUpload": (os.path.basename(filepath), f, "image/png")},
-            timeout=30,
-        )
-    direct_url = response.text.strip()
-    if not direct_url.startswith("https://"):
-        raise Exception(f"catbox upload failed: {response.text}")
-    print(f"      URL: {direct_url}")
-    return direct_url
+    for attempt in range(1, 4):
+        try:
+            with open(filepath, "rb") as f:
+                response = requests.post(
+                    "https://catbox.moe/user/api.php",
+                    data={"reqtype": "fileupload"},
+                    files={"fileToUpload": (os.path.basename(filepath), f, "image/png")},
+                    timeout=30,
+                )
+            direct_url = response.text.strip()
+            if direct_url.startswith("https://"):
+                print(f"      URL: {direct_url}")
+                return direct_url
+            raise Exception(f"Bad response: {response.text[:120]}")
+        except Exception as e:
+            if attempt < 3:
+                wait = attempt * 10
+                print(f"      [UPLOAD RETRY {attempt}/3] {e} — waiting {wait}s...")
+                time.sleep(wait)
+            else:
+                raise Exception(f"catbox upload failed after 3 attempts: {e}")
 
 # ── INSTAGRAM CAROUSEL POST ───────────────────────────────────────────────────
 def post_carousel(image_urls, caption):
