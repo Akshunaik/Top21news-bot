@@ -223,37 +223,61 @@ def create_story_image(headline, caption, source, category, color, index, total=
     img.save(filename)
     return filename
 
-# ── UPLOAD TO CLOUDINARY ──────────────────────────────────────────────────────
+# ── UPLOAD TO GITHUB RELEASES ─────────────────────────────────────────────────
 def upload_image(filepath):
-    """Upload to Cloudinary — reliable, fast, Instagram-friendly URLs."""
-    import hashlib, hmac
-    timestamp = str(int(time.time()))
+    """Upload to GitHub Releases — uses built-in GITHUB_TOKEN, no external account needed."""
+    github_token = os.environ.get("GITHUB_TOKEN", "")
+    github_repo  = os.environ.get("GITHUB_REPOSITORY", "")
+    tag          = "image-hosting"
 
-    # Build signature
-    params_to_sign = f"timestamp={timestamp}"
-    signature = hmac.new(
-        CLOUDINARY_API_SECRET.encode(),
-        params_to_sign.encode(),
-        hashlib.sha1
-    ).hexdigest()
+    gh_headers = {
+        "Authorization": f"token {github_token}",
+        "Accept":        "application/vnd.github.v3+json",
+    }
+
+    # Get existing release or create it
+    r = requests.get(
+        f"https://api.github.com/repos/{github_repo}/releases/tags/{tag}",
+        headers=gh_headers,
+    )
+    if r.status_code == 200:
+        upload_url = r.json()["upload_url"].split("{")[0]
+    else:
+        print(f"      Creating image-hosting release...")
+        r = requests.post(
+            f"https://api.github.com/repos/{github_repo}/releases",
+            headers=gh_headers,
+            json={
+                "tag_name": tag,
+                "name":     "Image Hosting",
+                "body":     "Auto-generated images — do not delete",
+                "draft":    False,
+                "prerelease": False,
+            },
+        )
+        if "upload_url" not in r.json():
+            raise Exception(f"Could not create release: {r.json()}")
+        upload_url = r.json()["upload_url"].split("{")[0]
+
+    # Upload with unique timestamped filename to avoid conflicts
+    unique_name = f"{int(time.time())}_{os.path.basename(filepath)}"
 
     for attempt in range(1, 4):
         try:
             with open(filepath, "rb") as f:
-                response = requests.post(
-                    f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/image/upload",
-                    data={
-                        "api_key":   CLOUDINARY_API_KEY,
-                        "timestamp": timestamp,
-                        "signature": signature,
+                r = requests.post(
+                    f"{upload_url}?name={unique_name}",
+                    headers={
+                        "Authorization": f"token {github_token}",
+                        "Content-Type":  "image/png",
                     },
-                    files={"file": f},
-                    timeout=30,
+                    data=f,
+                    timeout=60,
                 )
-            result = response.json()
-            if "secure_url" not in result:
-                raise Exception(f"Cloudinary error: {result}")
-            url = result["secure_url"]
+            result = r.json()
+            if "browser_download_url" not in result:
+                raise Exception(f"GitHub upload error: {result}")
+            url = result["browser_download_url"]
             print(f"      URL: {url}")
             return url
         except Exception as e:
@@ -262,7 +286,7 @@ def upload_image(filepath):
                 print(f"      [UPLOAD RETRY {attempt}/3] {e} — waiting {wait}s...")
                 time.sleep(wait)
             else:
-                raise Exception(f"Cloudinary upload failed after 3 attempts: {e}")
+                raise Exception(f"GitHub upload failed after 3 attempts: {e}")
 
 # ── INSTAGRAM CAROUSEL POST ───────────────────────────────────────────────────
 def post_carousel(image_urls, caption):
