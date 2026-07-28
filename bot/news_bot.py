@@ -173,13 +173,10 @@ def create_story_image(headline, caption, source, category, color, index, total=
     draw.text((W - MARGIN, 90), "swipe for more  \u203a", fill="#3A5A7A",
               font=load_font(26), anchor="rt")
 
-    # Headline — smaller font, single line, truncated cleanly
-    f_hl      = load_font(40, bold=True)
-    # Truncate headline to fit one line (max 42 chars)
-    hl_text   = headline if len(headline) <= 42 else headline[:39] + "..."
-    hl_y      = 130
-    # Allow up to 3 lines max with wrapping at 36 chars
-    wrapped   = textwrap.wrap(hl_text, width=36)[:3]
+    # Headline — smaller font, wraps fully, NO truncation
+    f_hl    = load_font(40, bold=True)
+    wrapped = textwrap.wrap(headline, width=36)[:4]
+    hl_y    = 130
     for line in wrapped:
         draw.text((MARGIN, hl_y), line, fill="#FFFFFF", font=f_hl)
         hl_y += 52
