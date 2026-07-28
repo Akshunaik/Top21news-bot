@@ -10,14 +10,13 @@ import base64
 from collections import defaultdict
 
 # ── ENV ───────────────────────────────────────────────────────────────────────
-GEMINI_API_KEY       = os.environ["GEMINI_API_KEY"]
-IG_ACCESS_TOKEN      = os.environ.get("IG_ACCESS_TOKEN", "")
-IG_ACCOUNT_ID        = os.environ.get("IG_ACCOUNT_ID", "")
-CLOUDINARY_API_KEY    = os.environ.get("CLOUDINARY_API_KEY", "")
-CLOUDINARY_API_SECRET = os.environ.get("CLOUDINARY_API_SECRET", "")
-CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME", "")
+GEMINI_API_KEY    = os.environ["GEMINI_API_KEY"]
+IG_ACCESS_TOKEN   = os.environ.get("IG_ACCESS_TOKEN", "")
+IG_ACCOUNT_ID     = os.environ.get("IG_ACCOUNT_ID", "")
+GITHUB_TOKEN      = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "")
 
-# ── CATEGORIES (21 stories total) ────────────────────────────────────────────
+# ── CATEGORIES ────────────────────────────────────────────────────────────────
 CATEGORIES = [
     {"name": "Technology",    "query": "technology+AI",     "count": 6, "color": "#00D4FF"},
     {"name": "Business",      "query": "business+economy",  "count": 5, "color": "#00FF88"},
@@ -27,7 +26,7 @@ CATEGORIES = [
     {"name": "Sports",        "query": "sports",            "count": 1, "color": "#FF4081"},
 ]
 
-# ── DESIGN CONSTANTS ──────────────────────────────────────────────────────────
+# ── DESIGN ────────────────────────────────────────────────────────────────────
 BG_COLOR      = "#0D1B2A"
 BG_CARD_COLOR = "#0A1628"
 ACCENT_COLOR  = "#00D4FF"
@@ -84,17 +83,17 @@ def ai_summarize(articles, category, count):
     prompt = f"""You are a news editor for Instagram account @Top21News.
 From these {category} headlines, pick the {count} most interesting ones.
 For each, write a complete 2-3 sentence summary. Every sentence MUST end with a full stop.
-Also identify the likely publication name from the headline.
+Also identify the likely publication name.
 
 Headlines:
 {headlines}
 
-Respond ONLY in this exact JSON format with no extra text and no markdown backticks:
+Respond ONLY in this exact JSON format, no markdown backticks:
 [
   {{
     "headline": "original headline here",
-    "caption": "your complete 2-3 sentence summary here. Each sentence ends with a full stop.",
-    "source": "publication name e.g. Reuters, CNN, BBC, TechCrunch",
+    "caption": "your complete 2-3 sentence summary here. Ends with full stop.",
+    "source": "publication name e.g. Reuters, CNN, BBC",
     "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5"
   }}
 ]"""
@@ -116,11 +115,9 @@ def create_cover_image(part_num, total_parts, story_start, story_end):
     img  = Image.new("RGB", (W, H), color=BG_COLOR)
     draw = ImageDraw.Draw(img)
 
-    # Left vertical cyan bar + top line
     draw.rectangle([0, 0, 7, H], fill=ACCENT_COLOR)
     draw.rectangle([0, 0, W, 5], fill=ACCENT_COLOR)
 
-    # @Top21News centered with lines on both sides
     f_handle = load_font(42, bold=True)
     label    = "@Top21News"
     bbox     = draw.textbbox((0, 0), label, font=f_handle)
@@ -131,27 +128,17 @@ def create_cover_image(part_num, total_parts, story_start, story_end):
     draw.line([(50, ty), (cx - lw//2 - gap, ty)], fill=ACCENT_COLOR, width=2)
     draw.line([(cx + lw//2 + gap, ty), (W - 50, ty)], fill=ACCENT_COLOR, width=2)
 
-    # Giant "21"
     draw.text((cx, H//2 - 80), "21", fill="#FFFFFF",
               font=load_font(320, bold=True), anchor="mm")
-
-    # "NEWS STORIES" in cyan
     draw.text((cx, H//2 + 145), "NEWS STORIES", fill=ACCENT_COLOR,
               font=load_font(80, bold=True), anchor="mm")
-
-    # Cyan separator
     draw.line([(120, H//2 + 198), (W - 120, H//2 + 198)], fill=ACCENT_COLOR, width=2)
 
-    # Part info
     part_text = f"PART {part_num} OF {total_parts}   \u00b7   STORIES {story_start} \u2013 {story_end}"
     draw.text((cx, H//2 + 252), part_text, fill="#FFFFFF",
               font=load_font(40, bold=True), anchor="mm")
-
-    # Swipe hint
     draw.text((cx, H//2 + 316), "Swipe left to read  \u203a", fill="#4A7A9B",
               font=load_font(34), anchor="mm")
-
-    # Date
     draw.text((cx, H - 48), datetime.now().strftime("%B %d, %Y"), fill="#2A4A6A",
               font=load_font(30), anchor="mm")
 
@@ -164,52 +151,48 @@ def create_story_image(headline, caption, source, category, color, index, total=
     img  = Image.new("RGB", (W, H), color=BG_COLOR)
     draw = ImageDraw.Draw(img)
     r, g, b = hex_to_rgb(color)
+    MARGIN  = 60
 
-    # Left bar + top line
     draw.rectangle([0, 0, 7, H], fill=(r, g, b))
     draw.rectangle([0, 0, W, 5], fill=(r, g, b))
 
-    MARGIN = 60
-
-    # Category pill (solid filled)
-    f_cat  = load_font(30, bold=True)
+    # Category pill
+    f_cat   = load_font(30, bold=True)
     cat_lbl = f"#{category.upper()}"
     cbbox   = draw.textbbox((0, 0), cat_lbl, font=f_cat)
     cw      = cbbox[2] - cbbox[0] + 36
     draw_rounded_rect(draw, [MARGIN, 38, MARGIN + cw, 88], radius=10, fill=(r, g, b))
     draw.text((MARGIN + cw//2, 63), cat_lbl, fill="#FFFFFF", font=f_cat, anchor="mm")
 
-    # Story number top right
-    num_str = f"{index} / {total}"
-    draw.text((W - MARGIN, 38), num_str, fill=ACCENT_COLOR,
+    # Story counter
+    draw.text((W - MARGIN, 38), f"{index} / {total}", fill=ACCENT_COLOR,
               font=load_font(42, bold=True), anchor="rt")
     draw.text((W - MARGIN, 90), "swipe for more  \u203a", fill="#3A5A7A",
               font=load_font(26), anchor="rt")
 
-    # Headline — left aligned, large bold
+    # Headline
     hl_y    = 130
     wrapped = textwrap.wrap(headline, width=24)[:5]
     for line in wrapped:
         draw.text((MARGIN, hl_y), line, fill="#FFFFFF", font=load_font(58, bold=True))
         hl_y += 72
 
-    # Short underline below headline
+    # Underline
     draw.rectangle([MARGIN, hl_y + 8, MARGIN + 90, hl_y + 16], fill=(r, g, b))
     hl_y += 38
 
     # Content box
-    box_y2 = H - 140
-    draw_rounded_rect(draw, [MARGIN, hl_y, W - MARGIN, box_y2],
+    draw_rounded_rect(draw, [MARGIN, hl_y, W - MARGIN, H - 140],
                       radius=18, fill=hex_to_rgb(BG_CARD_COLOR))
 
-    # Caption inside box
+    # Caption
     cap_lines = textwrap.wrap(caption, width=38)[:6]
     cap_y     = hl_y + 44
     for line in cap_lines:
         draw.text((MARGIN + 36, cap_y), line, fill="#C8D8E8", font=load_font(38))
         cap_y += 56
 
-    # Bottom: source + date
+    # Source + date
     draw.text((MARGIN, H - 110), f"Source: {source}", fill="#3A5A7A", font=load_font(30))
     draw.text((W - MARGIN, H - 110), datetime.now().strftime("%B %d, %Y"),
               fill="#3A5A7A", font=load_font(30), anchor="rt")
@@ -223,78 +206,76 @@ def create_story_image(headline, caption, source, category, color, index, total=
     img.save(filename)
     return filename
 
-# ── UPLOAD TO GITHUB RELEASES ─────────────────────────────────────────────────
-def upload_image(filepath):
-    """Upload to GitHub Releases — uses built-in GITHUB_TOKEN, no external account needed."""
-    github_token = os.environ.get("GITHUB_TOKEN", "")
-    github_repo  = os.environ.get("GITHUB_REPOSITORY", "")
-    tag          = "image-hosting"
-
-    gh_headers = {
-        "Authorization": f"token {github_token}",
+# ── UPLOAD: GitHub Releases (no external service needed) ─────────────────────
+def get_or_create_release(tag="image-hosting"):
+    """Get existing release upload URL or create one."""
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
         "Accept":        "application/vnd.github.v3+json",
     }
-
-    # Get existing release or create it
+    # Try to get existing release
     r = requests.get(
-        f"https://api.github.com/repos/{github_repo}/releases/tags/{tag}",
-        headers=gh_headers,
+        f"https://api.github.com/repos/{GITHUB_REPOSITORY}/releases/tags/{tag}",
+        headers=headers,
     )
     if r.status_code == 200:
-        upload_url = r.json()["upload_url"].split("{")[0]
-    else:
-        print(f"      Creating image-hosting release...")
-        r = requests.post(
-            f"https://api.github.com/repos/{github_repo}/releases",
-            headers=gh_headers,
-            json={
-                "tag_name": tag,
-                "name":     "Image Hosting",
-                "body":     "Auto-generated images — do not delete",
-                "draft":    False,
-                "prerelease": False,
-            },
-        )
-        if "upload_url" not in r.json():
-            raise Exception(f"Could not create release: {r.json()}")
-        upload_url = r.json()["upload_url"].split("{")[0]
+        return r.json()["upload_url"].split("{")[0]
 
-    # Upload with unique timestamped filename to avoid conflicts
+    # Create new release
+    r = requests.post(
+        f"https://api.github.com/repos/{GITHUB_REPOSITORY}/releases",
+        headers=headers,
+        json={
+            "tag_name":   tag,
+            "name":       "Bot Image Hosting",
+            "body":       "Auto-generated images for Top21News bot. Do not delete.",
+            "draft":      False,
+            "prerelease": False,
+        },
+    )
+    data = r.json()
+    if "upload_url" not in data:
+        raise Exception(f"Failed to create release: {data}")
+    return data["upload_url"].split("{")[0]
+
+def upload_image(filepath, upload_url):
+    """Upload image to GitHub Release assets."""
+    # Use timestamp to avoid filename conflicts
     unique_name = f"{int(time.time())}_{os.path.basename(filepath)}"
-
+    headers = {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Content-Type":  "image/png",
+    }
     for attempt in range(1, 4):
         try:
             with open(filepath, "rb") as f:
                 r = requests.post(
                     f"{upload_url}?name={unique_name}",
-                    headers={
-                        "Authorization": f"token {github_token}",
-                        "Content-Type":  "image/png",
-                    },
+                    headers=headers,
                     data=f,
                     timeout=60,
                 )
-            result = r.json()
-            if "browser_download_url" not in result:
-                raise Exception(f"GitHub upload error: {result}")
-            url = result["browser_download_url"]
-            print(f"      URL: {url}")
+            data = r.json()
+            if "browser_download_url" not in data:
+                raise Exception(f"Upload error: {data.get('errors', data)}")
+            url = data["browser_download_url"]
+            print(f"      ✅ {os.path.basename(filepath)} → {url[:70]}...")
             return url
         except Exception as e:
             if attempt < 3:
                 wait = attempt * 10
-                print(f"      [UPLOAD RETRY {attempt}/3] {e} — waiting {wait}s...")
+                print(f"      [RETRY {attempt}/3] {e} — waiting {wait}s...")
                 time.sleep(wait)
             else:
-                raise Exception(f"GitHub upload failed after 3 attempts: {e}")
+                raise Exception(f"Upload failed after 3 attempts: {e}")
 
-# ── INSTAGRAM CAROUSEL POST ───────────────────────────────────────────────────
+# ── INSTAGRAM CAROUSEL ────────────────────────────────────────────────────────
 def post_carousel(image_urls, caption):
     if not IG_ACCESS_TOKEN:
         print("  [SKIP] Instagram not configured.")
         return True
 
-    # Step 1: individual containers with retry
+    # Create individual containers
     container_ids = []
     for i, url in enumerate(image_urls):
         print(f"    Creating container {i+1}/{len(image_urls)}...")
@@ -312,16 +293,15 @@ def post_carousel(image_urls, caption):
                 break
             is_transient = result.get("error", {}).get("is_transient", False)
             if is_transient and attempt < 3:
-                wait = attempt * 15
-                print(f"    [TRANSIENT] Attempt {attempt} failed, retrying in {wait}s...")
-                time.sleep(wait)
+                print(f"    [TRANSIENT] Retrying in {attempt*15}s...")
+                time.sleep(attempt * 15)
             else:
                 print(f"    [ERROR] Container failed: {result}")
                 return False
         container_ids.append(result["id"])
         time.sleep(4)
 
-    # Step 2: carousel container
+    # Create carousel container
     print(f"    Creating carousel ({len(container_ids)} items)...")
     r = requests.post(
         f"https://graph.facebook.com/v18.0/{IG_ACCOUNT_ID}/media",
@@ -334,12 +314,12 @@ def post_carousel(image_urls, caption):
     )
     result = r.json()
     if "id" not in result:
-        print(f"    [ERROR] Carousel container failed: {result}")
+        print(f"    [ERROR] Carousel failed: {result}")
         return False
     carousel_id = result["id"]
     time.sleep(10)
 
-    # Step 3: publish with retry
+    # Publish with retry
     print(f"    Publishing carousel...")
     for attempt in range(1, 4):
         r2 = requests.post(
@@ -348,13 +328,12 @@ def post_carousel(image_urls, caption):
         )
         result = r2.json()
         if "id" in result:
-            print(f"    ✅ Published! Carousel ID: {result['id']}")
+            print(f"    ✅ Published! ID: {result['id']}")
             return True
         is_transient = result.get("error", {}).get("is_transient", False)
         if is_transient and attempt < 3:
-            wait = attempt * 20
-            print(f"    [TRANSIENT] Publish attempt {attempt} failed, retrying in {wait}s...")
-            time.sleep(wait)
+            print(f"    [TRANSIENT] Retrying publish in {attempt*20}s...")
+            time.sleep(attempt * 20)
         else:
             print(f"    [ERROR] Publish failed: {result}")
             return False
@@ -362,6 +341,11 @@ def post_carousel(image_urls, caption):
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 def main():
     print(f"Top21News Bot starting {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+
+    # Get GitHub Release upload URL once (reused for all images)
+    print("Setting up GitHub image hosting...")
+    upload_url = get_or_create_release()
+    print(f"  Upload URL ready ✅")
 
     # 1. Collect all 21 stories
     all_posts = []
@@ -382,74 +366,67 @@ def main():
             print(f"  AI failed: {e}")
 
     all_posts = all_posts[:21]
-    print(f"\nTotal stories collected: {len(all_posts)}")
+    print(f"\nTotal stories: {len(all_posts)}")
     if len(all_posts) == 0:
-        print("No stories collected. Exiting.")
+        print("No stories. Exiting.")
         return
 
-    # 2. Round-robin mix by category
+    # 2. Round-robin category mix
     buckets      = defaultdict(list)
     for post in all_posts:
         buckets[post["category"]].append(post)
     mixed        = []
     bucket_lists = list(buckets.values())
-    max_len      = max(len(b) for b in bucket_lists)
-    for i in range(max_len):
+    for i in range(max(len(b) for b in bucket_lists)):
         for bucket in bucket_lists:
             if i < len(bucket):
                 mixed.append(bucket[i])
     all_posts = mixed[:21]
-    print(f"Category order: {[p['category'] for p in all_posts]}")
+    print(f"Category mix: {[p['category'] for p in all_posts]}")
 
-    # 3. Split into 3 parts of 7
+    # 3. Split into 3 parts of 7 and post
     STORIES_PER_PART = 7
     parts       = [all_posts[i: i + STORIES_PER_PART] for i in range(0, len(all_posts), STORIES_PER_PART)]
     total_parts = len(parts)
 
-    # 4. Build & post each carousel
     for part_idx, part_stories in enumerate(parts):
         part_num    = part_idx + 1
         story_start = part_idx * STORIES_PER_PART + 1
         story_end   = story_start + len(part_stories) - 1
 
         print(f"\n{'='*55}")
-        print(f"  PART {part_num} of {total_parts}  |  Stories {story_start}–{story_end}")
+        print(f"  PART {part_num}/{total_parts}  |  Stories {story_start}–{story_end}")
         print(f"{'='*55}")
 
+        # Create images
         image_files = []
-        image_urls  = []
-
-        # Cover image
-        print(f"  Creating cover image...")
+        print(f"  Creating cover...")
         image_files.append(create_cover_image(part_num, total_parts, story_start, story_end))
-
-        # 7 story images
         for i, post in enumerate(part_stories):
-            story_idx = story_start + i
-            print(f"  Creating story image {story_idx}...")
+            idx = story_start + i
+            print(f"  Creating story {idx}...")
             image_files.append(create_story_image(
                 post["headline"], post["caption"],
                 post.get("source", "Top21News"),
-                post["category"], post["color"],
-                story_idx, total=21,
+                post["category"], post["color"], idx,
             ))
 
-        # Upload all 8
-        print(f"  Uploading {len(image_files)} images to Cloudinary...")
+        # Upload to GitHub Releases
+        print(f"  Uploading {len(image_files)} images...")
+        image_urls = []
         for img_file in image_files:
             try:
-                url = upload_image(img_file)
+                url = upload_image(img_file, upload_url)
                 image_urls.append(url)
-                print(f"    ✅ Uploaded: {img_file}")
                 time.sleep(1)
             except Exception as e:
-                print(f"    ❌ Upload failed for {img_file}: {e}")
+                print(f"    ❌ Failed: {img_file}: {e}")
 
         if len(image_urls) < len(image_files):
             print(f"  ⚠️ Upload incomplete ({len(image_urls)}/{len(image_files)}), skipping Part {part_num}")
             continue
 
-        # Caption + hashtags
+        # Post carousel
         hashtags = (
             "#Top21News #DailyNews #NewsUpdate #NewsReel #BreakingNews #StayInformed "
             "#WorldNews #NewsOfTheDay #CurrentEvents #Headlines #NewsAlert #TodaysNews "
@@ -464,7 +441,6 @@ def main():
         )
         post_carousel(image_urls, caption)
 
-        # Wait between carousels
         if part_num < total_parts:
             print(f"  ⏳ Waiting 60s before next carousel...")
             time.sleep(60)
