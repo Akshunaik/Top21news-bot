@@ -82,8 +82,11 @@ def ai_summarize(articles, category, count):
     headlines = "\n".join([f"{i+1}. {a['title']}" for i, a in enumerate(articles)])
     prompt = f"""You are a news editor for Instagram account @Top21News.
 From these {category} headlines, pick the {count} most interesting ones.
-For each, write a complete 2-3 sentence summary. Every sentence MUST end with a full stop.
-Also identify the likely publication name.
+
+For each story:
+1. "headline": Rewrite as a SHORT punchy title (max 8 words, no source name like "- CNN" or "- Reuters")
+2. "caption": Write 4-5 complete sentences explaining the full story. Every sentence MUST end with a full stop. Never cut off mid-sentence. Include context, impact and key details.
+3. "source": The publication name from the original headline
 
 Headlines:
 {headlines}
@@ -91,8 +94,8 @@ Headlines:
 Respond ONLY in this exact JSON format, no markdown backticks:
 [
   {{
-    "headline": "original headline here",
-    "caption": "your complete 2-3 sentence summary here. Ends with full stop.",
+    "headline": "short punchy title max 8 words",
+    "caption": "Full 4-5 sentence story here. Each sentence complete. Never cut off. Ends with full stop.",
     "source": "publication name e.g. Reuters, CNN, BBC",
     "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5"
   }}
@@ -170,27 +173,47 @@ def create_story_image(headline, caption, source, category, color, index, total=
     draw.text((W - MARGIN, 90), "swipe for more  \u203a", fill="#3A5A7A",
               font=load_font(26), anchor="rt")
 
-    # Headline
-    hl_y    = 130
-    wrapped = textwrap.wrap(headline, width=24)[:5]
+    # Headline — smaller font, single line, truncated cleanly
+    f_hl      = load_font(40, bold=True)
+    # Truncate headline to fit one line (max 42 chars)
+    hl_text   = headline if len(headline) <= 42 else headline[:39] + "..."
+    hl_y      = 130
+    # Allow up to 3 lines max with wrapping at 36 chars
+    wrapped   = textwrap.wrap(hl_text, width=36)[:3]
     for line in wrapped:
-        draw.text((MARGIN, hl_y), line, fill="#FFFFFF", font=load_font(58, bold=True))
-        hl_y += 72
+        draw.text((MARGIN, hl_y), line, fill="#FFFFFF", font=f_hl)
+        hl_y += 52
 
     # Underline
-    draw.rectangle([MARGIN, hl_y + 8, MARGIN + 90, hl_y + 16], fill=(r, g, b))
-    hl_y += 38
+    draw.rectangle([MARGIN, hl_y + 6, MARGIN + 70, hl_y + 13], fill=(r, g, b))
+    hl_y += 32
 
-    # Content box
+    # Content box — taller now since headline is smaller
     draw_rounded_rect(draw, [MARGIN, hl_y, W - MARGIN, H - 140],
                       radius=18, fill=hex_to_rgb(BG_CARD_COLOR))
 
-    # Caption
-    cap_lines = textwrap.wrap(caption, width=38)[:6]
-    cap_y     = hl_y + 44
-    for line in cap_lines:
-        draw.text((MARGIN + 36, cap_y), line, fill="#C8D8E8", font=load_font(38))
-        cap_y += 56
+    # Caption — smaller font, more lines, NEVER truncate mid-sentence
+    f_cap     = load_font(33)
+    # Split into sentences and rebuild to fit
+    sentences = [s.strip() + "." for s in caption.replace("..","").split(".") if s.strip()]
+    full_text = " ".join(sentences)
+    cap_lines = textwrap.wrap(full_text, width=42)
+    # Calculate how many lines fit in the box
+    box_height = (H - 140) - hl_y
+    max_lines  = min(len(cap_lines), (box_height - 80) // 46)
+    # Find last complete sentence within max_lines
+    fitted_text = " ".join(cap_lines[:max_lines])
+    # Cut at last full stop to never leave incomplete sentence
+    last_stop = fitted_text.rfind(".")
+    if last_stop > 0:
+        fitted_text = fitted_text[:last_stop + 1]
+    display_lines = textwrap.wrap(fitted_text, width=42)
+    cap_y = hl_y + 36
+    for line in display_lines:
+        if cap_y + 46 > H - 150:
+            break
+        draw.text((MARGIN + 30, cap_y), line, fill="#C8D8E8", font=f_cap)
+        cap_y += 46
 
     # Source + date
     draw.text((MARGIN, H - 110), f"Source: {source}", fill="#3A5A7A", font=load_font(30))
