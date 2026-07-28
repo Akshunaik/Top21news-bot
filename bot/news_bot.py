@@ -238,29 +238,41 @@ def get_or_create_release(tag="image-hosting"):
         raise Exception(f"Failed to create release: {data}")
     return data["upload_url"].split("{")[0]
 
-def upload_image(filepath, upload_url):
-    """Upload image to GitHub Release assets."""
-    # Use timestamp to avoid filename conflicts
-    unique_name = f"{int(time.time())}_{os.path.basename(filepath)}"
+# ── UPLOAD: commit to repo → raw.githubusercontent.com (Instagram-friendly) ──
+def upload_image(filepath, upload_url=None):
+    """Commit image to repo and return raw.githubusercontent.com URL.
+    These are direct URLs with no redirects — Instagram can always fetch them."""
     headers = {
         "Authorization": f"token {GITHUB_TOKEN}",
-        "Content-Type":  "image/png",
+        "Accept":        "application/vnd.github.v3+json",
     }
+    # Use a fixed folder in the repo — images folder
+    unique_name = f"{int(time.time())}_{os.path.basename(filepath)}"
+    api_url     = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/contents/images/{unique_name}"
+
+    with open(filepath, "rb") as f:
+        content_b64 = base64.b64encode(f.read()).decode("utf-8")
+
     for attempt in range(1, 4):
         try:
-            with open(filepath, "rb") as f:
-                r = requests.post(
-                    f"{upload_url}?name={unique_name}",
-                    headers=headers,
-                    data=f,
-                    timeout=60,
-                )
+            r = requests.put(
+                api_url,
+                headers=headers,
+                json={
+                    "message": f"bot: add {unique_name}",
+                    "content": content_b64,
+                },
+                timeout=60,
+            )
             data = r.json()
-            if "browser_download_url" not in data:
-                raise Exception(f"Upload error: {data.get('errors', data)}")
-            url = data["browser_download_url"]
-            print(f"      ✅ {os.path.basename(filepath)} → {url[:70]}...")
-            return url
+            if "content" not in data:
+                raise Exception(f"Commit error: {data.get('message', data)}")
+
+            # raw.githubusercontent.com = direct URL, no auth, no redirect
+            raw_url = f"https://raw.githubusercontent.com/{GITHUB_REPOSITORY}/main/images/{unique_name}"
+            print(f"      ✅ {os.path.basename(filepath)} → {raw_url[:70]}...")
+            time.sleep(2)  # Let GitHub CDN propagate
+            return raw_url
         except Exception as e:
             if attempt < 3:
                 wait = attempt * 10
@@ -268,6 +280,7 @@ def upload_image(filepath, upload_url):
                 time.sleep(wait)
             else:
                 raise Exception(f"Upload failed after 3 attempts: {e}")
+
 
 # ── INSTAGRAM CAROUSEL ────────────────────────────────────────────────────────
 def post_carousel(image_urls, caption):
@@ -342,11 +355,6 @@ def post_carousel(image_urls, caption):
 def main():
     print(f"Top21News Bot starting {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
-    # Get GitHub Release upload URL once (reused for all images)
-    print("Setting up GitHub image hosting...")
-    upload_url = get_or_create_release()
-    print(f"  Upload URL ready ✅")
-
     # 1. Collect all 21 stories
     all_posts = []
     for category in CATEGORIES:
@@ -416,7 +424,7 @@ def main():
         image_urls = []
         for img_file in image_files:
             try:
-                url = upload_image(img_file, upload_url)
+                url = upload_image(img_file)
                 image_urls.append(url)
                 time.sleep(1)
             except Exception as e:
