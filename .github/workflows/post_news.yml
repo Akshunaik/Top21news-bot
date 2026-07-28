@@ -2,15 +2,15 @@ name: Top21News Daily Bot
 
 on:
   schedule:
-    - cron: '30 2 * * *'   # runs daily at 8:00 AM IST
-  workflow_dispatch:         # allows manual trigger from Actions tab
+    - cron: '30 2 * * *'   # 8:00 AM IST daily
+  workflow_dispatch:         # manual trigger
 
 jobs:
   post-news:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write        # needed for GitHub Releases image hosting
+      contents: write        # required for GitHub Releases upload
 
     steps:
       - name: Checkout repo
@@ -22,13 +22,13 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install requests feedparser Pillow
 
       - name: Run news bot
         env:
-          GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
-          IG_ACCESS_TOKEN:     ${{ secrets.IG_ACCESS_TOKEN }}
-          IG_ACCOUNT_ID:       ${{ secrets.IG_ACCOUNT_ID }}
-          GITHUB_TOKEN:        ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY:   ${{ github.repository }}
+          GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          IG_ACCESS_TOKEN:   ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_ACCOUNT_ID:     ${{ secrets.IG_ACCOUNT_ID }}
+          GITHUB_TOKEN:      ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: python bot/news_bot.py
